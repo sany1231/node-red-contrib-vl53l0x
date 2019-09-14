@@ -49,102 +49,115 @@
 //
 // ===================================================================================
 
-module.exports = function (RED) {
-  'use strict'
+module.exports = function (RED) 
+{
+	'use strict'
+	var i2c = require('i2c-bus')
 
-  var i2c = require('i2c-bus')
-  var util = require('util')
+	function Vl53l0xNode (config)
+	{
+		RED.nodes.createNode(this, config)
+		this.bus = parseInt(config.bus) // I2C Bus Number
+		this.address = parseInt(config.address) // VL53L0X Address
+		this.interval = parseInt(config.interval) // Polling Interval
 
-  function Vl53l0xNode (config) {
-    RED.nodes.createNode(this, config)
-    this.bus = parseInt(config.bus) // I2C Bus Number
-    this.address = parseInt(config.address) // VL53L0X Address
-    this.interval = parseInt(config.interval) // Polling Interval
+		var node = this
+		var i2cBus = i2c.openSync(node.bus)
 
-    var node = this
-    console.log(util.inspect(node))
+		// Returns a range reading in millimeters.
+		function readRangeMillimeters () 
+		{
+			var timeout = 10
+			// wait until reading available, or timeout:
+      
+			while (i2cBus.readByteSync(node.address, 0x13) & 0x07 === 0) 
+			{
+				if (--timeout === 0)
+				{
+					return 0
+				}
+			}
 
-    var i2cBus = i2c.openSync(node.bus)
+			// get range in mm (just deal with erroneous readings in calling routine).
+			var range = i2cBus.readWordSync(node.address, (0x14 + 10))
+			// byte swap
+			range = ((range & 0xFF) << 8) | ((range >> 8) & 0xFF)
 
-    // Returns a range reading in millimeters.
-    function readRangeMillimeters () {
-      var timeout = 10
-      // wait until reading available, or timeout:
-      while (i2cBus.readByteSync(node.address, 0x13) & 0x07 === 0) {
-        if (--timeout === 0) {
-          console.log(new Date().toISOString + 'TIMEOUT')
-          return 0
-        }
-      }
+			// clear interrupt (is this needed for a simple polling scheme?):
+			i2cBus.writeByteSync(node.address, 0x0B, 0x01)
 
-      // get range in mm (just deal with erroneous readings in calling routine).
-      var range = i2cBus.readWordSync(node.address, (0x14 + 10))
-      // byte swap
-      range = ((range & 0xFF) << 8) | ((range >> 8) & 0xFF)
+			return range
+		}
 
-      // clear interrupt (is this needed for a simple polling scheme?):
-      i2cBus.writeByteSync(node.address, 0x0B, 0x01)
+		// lidar config VL53L0X_DataInit() stuff:
+		//   (just the basic stuff)
 
-      return range
-    }
+		// set 2.8V mode (register 0x89):
+		var i = i2cBus.readByteSync(node.address, 0x89) | 0x01 // read and set lsb
+		i2cBus.writeByteSync(node.address, 0x89, i) // then write it back
 
-    // lidar config VL53L0X_DataInit() stuff:
-    //   (just the basic stuff)
+		// set I2C standard mode:
+		i2cBus.writeByteSync(node.address, 0x88, 0x00)
 
-    // set 2.8V mode (register 0x89):
-    var i = i2cBus.readByteSync(node.address, 0x89) | 0x01 // read and set lsb
-    i2cBus.writeByteSync(node.address, 0x89, i) // then write it back
+		// lidar start continuous back-to-back ranging measurements:
+		i2cBus.writeByteSync(node.address, 0x00, 0x02)
 
-    // set I2C standard mode:
-    i2cBus.writeByteSync(node.address, 0x88, 0x00)
+		node.status({fill: 'red', shape: 'ring', text: 'pollstop'})
 
-    // lidar start continuous back-to-back ranging measurements:
-    i2cBus.writeByteSync(node.address, 0x00, 0x02)
+		node.on('close', function (removed, done) 
+		{
+		  i2cBus.closeSync()
+		  done()
+		})
 
-    node.status({fill: 'red', shape: 'ring', text: 'pollstop'})
+		node.on('input', function (msg) 
+		{
+			if (msg.payload === 'start') 
+			{
+				node.intervalId = setInterval(function () 
+				{
+					// read lidar:
+					var range = readRangeMillimeters()
 
-    node.on('close', function (removed, done) {
-      i2cBus.closeSync()
-      done()
-    })
+					// so, the max range of this gizmo is about 2000mm, but we will use it in
+					// "default mode," which is specified to 1200mm (30 ms range timing budget).
+					// note: 20mm or 8190mm seems to be returned for bogus readings, so trap/limit:
+					if ((range <= 20) || (range > 1200))
+					{
+						range = 1200
+					}
 
-    node.on('input', function (msg) {
-      if (msg.payload === 'start') {
-        node.intervalId = setInterval(function () {
-          // read lidar:
-          var range = readRangeMillimeters()
 
-          // so, the max range of this gizmo is about 2000mm, but we will use it in
-          // "default mode," which is specified to 1200mm (30 ms range timing budget).
-          // note: 20mm or 8190mm seems to be returned for bogus readings, so trap/limit:
-          if ((range <= 20) || (range > 1200)) {
-            range = 1200
-          }
+					// --- super-simple "calibration" by surlee:
+					if (range > 400) 
+					{
+						range -= 50
+					} else if (range > 160) 
+					{
+						range -= 40
+					} else if (range > 100) 
+					{
+						range -= 35
+					} else 
+					{
+						range -= 30
+					}
 
-          // --- super-simple "calibration" by surlee:
-          if (range > 400) {
-            range -= 50
-          } else if (range > 160) {
-            range -= 40
-          } else if (range > 100) {
-            range -= 35
-          } else {
-            range -= 30
-          }
+					msg.payload = range
+					node.send(msg)
+				}, node.interval)
 
-          msg.payload = range
-          node.send(msg)
-        }, node.interval)
+				node.status({fill: 'green', shape: 'dot', text: 'pollstart'})
+			} else if (msg.payload === 'stop') 
+			{
+				if (node.intervalId) 
+				{
+					clearInterval(node.intervalId)
+				}
 
-        node.status({fill: 'green', shape: 'dot', text: 'pollstart'})
-      } else if (msg.payload === 'stop') {
-        if (node.intervalId) {
-          clearInterval(node.intervalId)
-        }
-
-        node.status({fill: 'red', shape: 'ring', text: 'pollstop'})
-      }
-    })
-  }
-  RED.nodes.registerType('vl53l0x', Vl53l0xNode)
+				node.status({fill: 'red', shape: 'ring', text: 'pollstop'})
+		  }
+		})
+	}
+	RED.nodes.registerType('vl53l0x', Vl53l0xNode)
 }

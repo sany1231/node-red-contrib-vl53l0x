@@ -89,6 +89,15 @@ module.exports = function (RED)
 			return range
 		}
 
+		function scan ()
+		{
+			const range = readRangeMillimeters() 
+			if(range > 300) return range - 30 
+			if(range == 20 || range == 8190) return
+
+			return range 
+		}
+
 		// lidar config VL53L0X_DataInit() stuff:
 		//   (just the basic stuff)
 
@@ -112,51 +121,19 @@ module.exports = function (RED)
 
 		node.on('input', function (msg) 
 		{
-			if (msg.payload === 'start') 
+			
+			const range = scan()
+
+			if(range == undefined) 
 			{
-				node.intervalId = setInterval(function () 
-				{
-					// read lidar:
-					var range = readRangeMillimeters()
+				node.status({fill: 'red', shape: 'ring', text: 'bad scan!'})
+				return 
+			}
 
-					// so, the max range of this gizmo is about 2000mm, but we will use it in
-					// "default mode," which is specified to 1200mm (30 ms range timing budget).
-					// note: 20mm or 8190mm seems to be returned for bogus readings, so trap/limit:
-					if ((range <= 20) || (range > 1200))
-					{
-						range = 1200
-					}
-
-
-					// --- super-simple "calibration" by surlee:
-					if (range > 400) 
-					{
-						range -= 50
-					} else if (range > 160) 
-					{
-						range -= 40
-					} else if (range > 100) 
-					{
-						range -= 35
-					} else 
-					{
-						range -= 30
-					}
-
-					msg.payload = range
-					node.send(msg)
-				}, node.interval)
-
-				node.status({fill: 'green', shape: 'dot', text: 'pollstart'})
-			} else if (msg.payload === 'stop') 
-			{
-				if (node.intervalId) 
-				{
-					clearInterval(node.intervalId)
-				}
-
-				node.status({fill: 'red', shape: 'ring', text: 'pollstop'})
-		  }
+			msg.payload = range 
+			node.send(msg)
+			node.status({fill: 'green', shape: 'dot', text: 'pollstart'})
+			
 		})
 	}
 	RED.nodes.registerType('vl53l0x', Vl53l0xNode)

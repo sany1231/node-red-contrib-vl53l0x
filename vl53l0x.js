@@ -92,9 +92,8 @@ module.exports = function (RED)
 		function scan ()
 		{
 			const range = readRangeMillimeters() 
+			if(range == 20) return
 			if(range > 300) return range - 30 
-			if(range == 20 || range == 8190) return
-
 			return range 
 		}
 

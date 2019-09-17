@@ -54,6 +54,14 @@ module.exports = function (RED)
 	'use strict'
 	var i2c = require('i2c-bus')
 
+	function aTimer (time = 0)
+	{
+		return new Promise((resolve) => 
+		{
+			setTimeout(() => resolve('done!'), time)
+		})
+	}
+
 	function Vl53l0xNode (config)
 	{
 		RED.nodes.createNode(this, config)
@@ -89,10 +97,16 @@ module.exports = function (RED)
 			return range
 		}
 
-		function scan ()
+		async function scan (count = 0)
 		{
 			const range = readRangeMillimeters() 
-			if(range == 20) return
+			if(range == 20)
+			{
+				if(count >= 10) return; 
+				await aTimer(100)
+				return scan(count + 1)
+			}
+
 			if(range > 300) return range - 30 
 			return range 
 		}

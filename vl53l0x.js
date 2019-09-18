@@ -132,10 +132,10 @@ module.exports = function (RED)
 		  done()
 		})
 
-		node.on('input', function (msg) 
+		node.on('input', async function (msg) 
 		{
 			
-			const range = scan()
+			const range = await scan()
 
 			if(range == undefined) 
 			{

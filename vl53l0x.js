@@ -107,7 +107,7 @@ module.exports = function (RED)
 				return scan(count + 1)
 			}
 
-			if(range > 300) return range - 30 
+			if(range > 40) return range - 30 
 			return range 
 		}
 

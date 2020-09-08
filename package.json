@@ -1,6 +1,6 @@
 {
     "name" : "vl53l0x",
-    "version" : "0.0.1",
+    "version" : "1.0.0",
     "description": "A Node-RED node to talk to the vl53l0x on the I2C bus",
     "dependencies": {
         "i2c-bus": "^5.2.0"
@@ -18,12 +18,15 @@
     ],
     "repository": {
         "type": "git",
-        "url": "https://github.com/mskutta/node-red-contrib-vl53l0x"
+        "url": "https://github.com/sany1231/node-red-contrib-vl53l0x"
     },
     "node-red" : {
         "nodes": {
             "hardware": "vl53l0x.js"
         }
+    },
+    "publishConfig": { 
+        "registry": "https://npm.pkg.github.com/" 
     },
     "readmeFilename": "README.md"
 }

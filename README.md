@@ -20,7 +20,7 @@ See the [Raspberry Pi SPI and I2C Tutorial](https://learn.sparkfun.com/tutorials
 
 The Node-RED VL53L0X Node has a few parameters that must be configured:
 
-1. **Bus**: This is the bus number the VL53L0X is connected to.  The default is **ic2-1**.
+1. **Bus**: This is the bus number the VL53L0X is connected to.  The default is **i2c-1**.
 1. **Bus Address**: This is the address of the VL53L0X.  The VL53L0X has an address of 41 (0x29) by default.
 1. **Poll Interval**: This is how often the distance in millimeters is read from the VL53L0X
 1. **Name**: (optional)
